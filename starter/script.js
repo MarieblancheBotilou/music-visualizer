@@ -89,6 +89,7 @@ audio.addEventListener("loadedmetadata", () => {
   seek.disabled = false;
   playBtn.disabled = false;
   document.body.classList.add("loaded");
+    trackLabel.textContent = "PinkPantheress — Last Valentines";
 });
 audio.addEventListener("play", syncTransport);
 audio.addEventListener("pause", syncTransport);
@@ -156,34 +157,143 @@ function animate(time) {
 // 3. seek "input" (user drags the slider):
 //      audio.currentTime = Number(seek.value)
 
+playBtn.addEventListener("click", () => {
+  if (audio.paused) {
+    audio.play();
+  } else {
+    audio.pause();
+  }
+});
+
+audio.addEventListener("timeupdate", () => {
+  seek.value = audio.currentTime;
+  timeLabel.textContent =
+    formatTime(audio.currentTime) + " / " + formatTime(audio.duration);
+});
+
+seek.addEventListener("input", () => {
+  audio.currentTime = Number(seek.value);
+}); 
+
+
 
 // =====================================================
 //  MILESTONES 1 & 2: the draw function (runs every frame)
 // =====================================================
 function draw() {
-  // PROVIDED: layout math. Each bar samples one frequency bin.
-  // We skip the top 35% of bins because music has almost nothing up there.
+  const time = performance.now() / 1000;
   const barCount = settings.barCount;
   const usableBins = Math.floor(analyser.frequencyBinCount * 0.65);
   const step = Math.floor(usableBins / barCount);
   const barWidth = canvas.width / barCount;
 
-  // ---- MILESTONE 1 (TODO): read the audio data ----
-  // 1. Make a Uint8Array with analyser.frequencyBinCount slots
-  // 2. Fill it using analyser.getByteFrequencyData(...)
-  // 3. console.log it, open DevTools (F12), and watch the numbers move!
+  const dataArray = new Uint8Array(analyser.frequencyBinCount);
+  analyser.getByteFrequencyData(dataArray);
 
-  // ---- MILESTONE 2 (TODO): draw the bars ----
-  // 1. Clear the canvas:  ctx.clearRect(0, 0, canvas.width, canvas.height)
-  // 2. Loop i from 0 to barCount - 1. Inside the loop:
-  //      value     = dataArray[i * step]            (a number from 0 to 255)
-  //      barHeight = value / 255 * canvas.height    (map 0-255 to pixels)
-  //      ctx.fillStyle = "white"
-  //      ctx.fillRect(x, y, width, height)
-  //    x = i * barWidth, width = barWidth - 2
-  //    y counts DOWN from the top, so the bar's top edge is canvas.height - barHeight
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Album-inspired colors, blended into a slowly moving ombre
+  const colors = [
+    [18, 35, 79],    // Midnight blue
+    [83, 157, 184],  // Icy cyan
+    [78, 47, 80],    // Muted plum
+    [113, 29, 42],   // Burgundy
+    [18, 35, 79]     // Return to blue
+  ];
+
+  function ombre(position) {
+    const offset = ((position + time * 0.035) % 1 + 1) % 1;
+    const scaled = offset * (colors.length - 1);
+    const index = Math.floor(scaled);
+    const blend = scaled - index;
+
+    const rgb = colors[index].map((channel, j) =>
+      Math.round(
+        channel + (colors[index + 1][j] - channel) * blend
+      )
+    );
+
+    return `rgb(${rgb.join(",")})`;
+  }
+
+  for (let i = 0; i < barCount; i++) {
+    const value = Math.min(
+      dataArray[i * step] * settings.sensitivity,
+      255
+    );
+
+    // Leave space above the buildings for lightning
+    const barHeight = (value / 255) * canvas.height * 0.8;
+    if (barHeight < 1) continue;
+
+    const x = i * barWidth + 2;
+    const y = canvas.height - barHeight;
+    const width = Math.max(1, barWidth - 4);
+    const position = i / barCount;
+
+    // Ombre fills the whole building
+    const gradient = ctx.createLinearGradient(
+      x, y, x + width, canvas.height
+    );
+
+    gradient.addColorStop(0, ombre(position));
+    gradient.addColorStop(0.5, ombre(position + 0.2));
+    gradient.addColorStop(1, "#05070d");
+
+    ctx.fillStyle = gradient;
+    ctx.fillRect(x, y, width, barHeight);
+
+    // Softly illuminated rooftop and edges
+    ctx.strokeStyle = ombre(position + 0.1);
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x, y, width, barHeight);
+
+    // Warm windows, like the house in the cover
+    const columns = Math.floor(width / 7);
+    const rows = Math.floor(barHeight / 12);
+
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < columns; col++) {
+        if ((i * 7 + row * 3 + col * 11) % 5 < 2) continue;
+
+        ctx.fillStyle =
+          (i + row + col) % 3 === 0
+            ? "rgba(190, 65, 48, 0.8)"
+            : "rgba(225, 182, 127, 0.65)";
+
+        ctx.fillRect(
+          x + 2 + col * 7,
+          canvas.height - 8 - row * 12,
+          2,
+          4
+        );
+      }
+    }
+
+    // Pale blue lightning on stronger frequencies
+    if (value > 145) {
+      const center = x + width / 2;
+      const height = 14 + (value / 255) * 28;
+      const bend = Math.min(width * 0.3, 6);
+      const sway = Math.sin(time * 7 + i) * bend;
+
+      ctx.save();
+      ctx.strokeStyle = "#d7eafa";
+      ctx.shadowColor = "#73b9e0";
+      ctx.shadowBlur = 12;
+      ctx.lineWidth = 1.4;
+
+      ctx.beginPath();
+      ctx.moveTo(center, y);
+      ctx.lineTo(center - bend, y - height * 0.35);
+      ctx.lineTo(center + bend, y - height * 0.6);
+      ctx.lineTo(center + sway, y - height);
+      ctx.stroke();
+
+      ctx.restore();
+    }
+  }
 }
-
 
 // =====================================================
 //  MILESTONE 3 (TODO): connect the sliders
@@ -198,6 +308,24 @@ function draw() {
 //
 // Then in draw(): multiply the value by settings.sensitivity (cap it with Math.min).
 
+sensitivitySlider.addEventListener("input", () => {
+  settings.sensitivity = Number(sensitivitySlider.value);
+  sensitivityLabel.textContent = settings.sensitivity.toFixed(1);
+});
+
+barCountSlider.addEventListener("input", () => {
+  settings.barCount = Number(barCountSlider.value);
+  barCountLabel.textContent = settings.barCount;
+});
+
+smoothingSlider.addEventListener("input", () => {
+  settings.smoothing = Number(smoothingSlider.value);
+  smoothingLabel.textContent = settings.smoothing;
+
+  if (analyser) {
+    analyser.smoothingTimeConstant = settings.smoothing;
+  }
+}); 
 
 // =====================================================
 //  MILESTONE 4 (TODO): color palettes
@@ -207,6 +335,16 @@ function draw() {
 //      ctx.fillStyle = `hsl(${getHue(i, barCount)}, 90%, 60%)`
 //    (getHue is provided. It returns a hue from 0 to 360.)
 
+paletteSelect.addEventListener("change", () => {
+  settings.palette = paletteSelect.value;
+}); 
 
 // ---------- PROVIDED: start the loop (keep this last) ----------
+if (audio.readyState >= 1) {
+  seek.max = audio.duration;
+  seek.disabled = false;
+  playBtn.disabled = false;
+  document.body.classList.add("loaded");
+  trackLabel.textContent = "PinkPantheress — Last Valentines";
+}
 animate();

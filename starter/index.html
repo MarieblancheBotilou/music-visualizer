@@ -7,17 +7,17 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <audio id="audio"></audio>
+  <audio id="audio" src="./song.mp3" preload="metadata"></audio>
 
   <header class="bar">
-    <div class="cell brand">
-      <span class="status" aria-hidden="true"></span>
-      <h1>VIS-01</h1>
-    </div>
-    <div class="cell track">
-      <span class="tag">TRACK</span>
-      <span id="trackName" class="track-name">NONE LOADED</span>
-    </div>
+  <div class="cell brand record-tile">
+  <span class="vinyl" aria-hidden="true"></span>
+</div>
+
+<div class="cell track">
+  <span id="trackName" class="track-name">NONE LOADED</span>
+</div>
+
     <label class="cell load">
       <span>LOAD FILE</span>
       <input type="file" id="fileInput" accept="audio/*" class="sr" />
